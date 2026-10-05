@@ -76,10 +76,24 @@ function Dashboard() {
   const [areaError, setAreaError] = useState<string | null>(null);
   const [areaLoading, setAreaLoading] = useState(false);
   const [areaVar, setAreaVar] = useState<AreaVarId>("none");
-  const [activePanel, setActivePanel] = useState<ActivePanel>("none");
+  const [activePanel, setActivePanel] = useState<ActivePanel>(() => {
+    try {
+      const p = new URLSearchParams(window.location.search).get("panel");
+      if (p === "hazards" || p === "forecast" || p === "replay" || p === "layers") return p;
+    } catch {
+      /* ignore */
+    }
+    return "none";
+  });
   const [rainSimVisible, setRainSimVisible] = useState(false);
   const [rainSlot, setRainSlot] = useState<HTMLElement | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("play") === "1";
+    } catch {
+      return false;
+    }
+  });
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [isCanvasMode, setIsCanvasMode] = useState(false);
@@ -367,6 +381,7 @@ function Dashboard() {
               areaFillOpacity={areaFillOpacity}
               baseMapId={baseMapId}
               activeOverlayIds={activeOverlayIds}
+              onSelectLocation={selectRegion}
             />
 
             {rainSimVisible && (
@@ -475,6 +490,15 @@ function Dashboard() {
                     areaVar={areaVar}
                     onAreaVarChange={setAreaVar}
                     onClose={() => setArea(null)}
+                    onRecenter={(b) => {
+                      map?.fitBounds(
+                        [
+                          [b[0], b[1]],
+                          [b[2], b[3]],
+                        ],
+                        { padding: 80, duration: 800 }
+                      );
+                    }}
                   />
                 )}
               </div>
@@ -529,11 +553,17 @@ function MapLayers(props: {
   areaFillOpacity?: number;
   baseMapId: string;
   activeOverlayIds: Set<string>;
+  onSelectLocation?: (lat: number, lon: number) => void;
 }) {
   return (
     <>
       <WmsBaseLayer selectedId={props.baseMapId} />
-      <HazardLayers hazards={props.hazards} hailVisible={props.heatmapsVisible} lightningVisible={props.lightningVisible} />
+      <HazardLayers
+        hazards={props.hazards}
+        hailVisible={props.heatmapsVisible}
+        lightningVisible={props.lightningVisible}
+        onSelectLocation={props.onSelectLocation}
+      />
       <WmsOverlayLayers activeIds={props.activeOverlayIds} />
       <SensorRasterLayers layers={props.rawLayers} satelliteVisible={props.satelliteVisible} radarVisible={props.radarVisible} />
       <WeatherRasterLayers layers={props.weatherLayers} activeVar={props.activeVar} />
@@ -541,7 +571,7 @@ function MapLayers(props: {
       <ModelFrameLayer frame={props.modelFrame} visible={props.modelFrameVisible} />
       <RegionBox region={props.region} />
       <AreaBox drawing={props.drawingArea} selected={props.area} fillColor={props.areaFillColor} fillOpacity={props.areaFillOpacity} />
-      <IndiaBase />
+      <IndiaBase onSelectLocation={props.onSelectLocation} />
     </>
   );
 }
